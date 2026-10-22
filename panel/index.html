@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Assistant — Panel</title>
+  <!-- Miro Web SDK v2. The panel iframe also loads the SDK so it can read frames
+       and create sticky notes / tags / vote icons on the board. -->
+  <script src="https://miro.com/app/static/sdk/v2/miro.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0; padding: 16px; color: #1a1a1a; background: #f7f7fb;
+      height: 100vh; overflow-y: auto;
+    }
+    .card {
+      background: #fff; border-radius: 12px; padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 12px;
+    }
+    h2 { margin: 0 0 8px 0; font-size: 15px; color: #0f172a; }
+    p.sub { margin: 0 0 12px 0; font-size: 12px; color: #64748b; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 700px){ .grid{ grid-template-columns: 1fr 1fr; } }
+    label { font-size: 12px; font-weight: 700; color: #334155; display:block; margin-bottom: 6px; }
+    select, input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: #fff; }
+    button {
+      font-size: 13px; font-weight: 700; border-radius: 8px; border: 1px solid transparent;
+      cursor: pointer; padding: 8px 12px; transition: transform .05s, opacity .2s;
+    }
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary { background: #0f172a; color: #fff; }
+    .btn-success { background: #15803d; color: #fff; }
+    .btn-danger { background: #b91c1c; color: #fff; }
+    .btn-outline { background: #fff; color: #0f172a; border-color: #cbd5e1; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .chip {
+      display:inline-flex; align-items:center; gap:6px; padding: 4px 10px;
+      border: 1px solid #cbd5e1; border-radius: 999px; font-size: 12px; background: #fff;
+      margin: 2px 2px 2px 0; white-space: nowrap;
+    }
+    .chip .chip-remove { border: none; background: transparent; color: #94a3b8; font-weight: 700; padding: 0 2px; cursor: pointer; }
+    .muted { color: #64748b; font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; }
+    #transcript { white-space: pre-wrap; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; height: 140px; overflow-y: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+    #thoughts { white-space: pre-wrap; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; height: 140px; overflow-y: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+    #themes { white-space: pre-wrap; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px; height: 110px; overflow-y: auto; font-size: 13px; line-height: 1.5; margin: 8px 0; }
+    .ok { color: #15803d; } .err { color: #b91c1c; } .warn { color: #b45309; }
+    .hidden { display: none !important; }
+    .small { font-size: 12px; }
+    .badge {
+      display:inline-flex; align-items:center; gap:6px; padding: 4px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 700; border: 1px solid #e2e8f0; background: #fff;
+    }
+    .badge.listening { border-color: #15803d; color: #15803d; background: #f0fdf4; }
+    .badge.idle { border-color: #cbd5e1; color: #64748b; background: #fff; }
+    #log { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="grid">
+    <!-- Board / frame -->
+    <div class="card" style="grid-column: 1 / -1;">
+      <div class="row" style="align-items:flex-start;">
+        <div style="min-width:0;">
+          <h2 style="font-size:16px;">🎙 Voice Assistant</h2>
+          <p id="boardInfo" class="sub small">Board: <span id="boardName"></span></p>
+        </div>
+        <div id="activeBadge" class="badge idle hidden">
+          <span>●</span> <span id="activeFrameText">Active frame: —</span>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <label style="margin-bottom:0;">Activity frame</label>
+        <select id="frameSelect" style="flex:1;"></select>
+      </div>
+      <div id="promptsList" class="muted small" style="margin-top:6px;"></div>
+
+      <div class="row" style="margin-top:10px;">
+        <button id="micBtn" class="btn-success" disabled>▶ Start listening</button>
+        <button id="stopFrameBtn" class="btn-outline disabled small" style="margin-left:auto;">Stop frame</button>
+      </div>
+      <div id="micStatus" class="muted small">Microphone not started</div>
+    </div>
+
+    <!-- Transcript -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>Live transcript</h2>
+        <span id="utteranceCount" class="muted small">0 utterances</span>
+      </div>
+      <div id="transcript">Waiting for speech…</div>
+    </div>
+
+    <!-- Thoughts -->
+    <div class="card" style="grid-column: 1 / -1;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>Synthesized thoughts (sticky notes)</h2>
+        <span id="thoughtCount" class="muted small">0 thoughts</span>
+      </div>
+      <div id="thoughts">No thoughts yet.</div>
+      <div class="row" style="margin-top:8px;">
+        <button id="createVoteBtn" class="btn-outline" disabled>➕ Add vote icon 👍</button>
+        <span id="voteHint" class="muted small">Tap a 👍 icon on the board to vote on a response.</span>
+      </div>
+    </div>
+
+    <!-- Wrap up / themes -->
+    <div class="card" style="grid-column: 1 / -1;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>Wrap up</h2>
+        <button id="endBtn" class="btn-danger" disabled>End discussion &amp; show top themes</button>
+      </div>
+      <div id="themes">No themes yet.</div>
+    </div>
+
+    <div id="log" class="muted small mono"></div>
+  </div>
+
+  <script src="index.js"></script>
+</body>
+</html>
