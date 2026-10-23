@@ -9,7 +9,7 @@
 //   3. Open the assistant panel, passing boardId/boardName so the panel can
 //      create sticky notes, tags, and vote icons on the board.
 
-(async () => {
+/*(async () => {
   const status = document.getElementById('status');
 
   // The `miro` global is provided by https://miro.com/app/static/sdk/v2/miro.js
@@ -33,6 +33,25 @@
     } catch (err) {
       console.error('Failed to open panel:', err);
       status.textContent = 'Error opening panel. Check console.';
+    }
+  });
+})();*/
+(async () => {
+  console.log('[HEADLESS] Starting initialize...');
+  await miro.initialize();
+  console.log('[HEADLESS] Miro initialized');
+  
+  miro.board.ui.on('icon:click', async () => {
+    console.log('[HEADLESS] Icon clicked!');
+    try {
+      await miro.board.ui.openPanel({
+        url: '../panel/index.html',
+        height: 600,
+        data: { boardId: await miro.board.get().then(b => b.id), boardName: 'Board' },
+      });
+      console.log('[HEADLESS] Panel opened');
+    } catch (e) {
+      console.error('[HEADLESS] Panel open failed:', e);
     }
   });
 })();
